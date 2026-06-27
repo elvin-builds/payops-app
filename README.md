@@ -95,7 +95,7 @@ See `.env.example` for all configuration options.
 - [x] Phase 6: Kubernetes Deployment (manual manifests)
 - [x] Phase 7: Helm Chart
 - [x] Phase 8: Ingress Controller (NGINX)
-- [ ] Phase 9: CD Pipeline (auto-deploy to AKS)
+- [x] Phase 9: CD Pipeline (auto-deploy to AKS)
 - [ ] Phase 10: Monitoring (Prometheus/Grafana)
 - [ ] Phase 11: GitOps (Argo CD)
 - [ ] Phase 12: Secrets Management (Azure Key Vault CSI)
