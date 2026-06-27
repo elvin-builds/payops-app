@@ -1,6 +1,7 @@
 global:
   namespace: payops-dev
   imageRegistry: payopsdevacr.azurecr.io
+  imageTag: latest
   imagePullPolicy: Always
   environment: dev
 

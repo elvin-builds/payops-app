@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: {{ $svc.name }}
-          image: "{{ $root.Values.global.imageRegistry }}/{{ $svc.image }}:latest"
+          image: "{{ $root.Values.global.imageRegistry }}/{{ $svc.image }}:{{ $root.Values.global.imageTag }}"
           imagePullPolicy: {{ $root.Values.global.imagePullPolicy }}
           ports:
             - containerPort: {{ $svc.port }}
