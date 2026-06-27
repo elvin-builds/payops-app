@@ -1,0 +1,181 @@
+# PayOps Platform — Local Development Environment
+# Bütün sistemi bir command-la qaldırır: docker-compose up
+#
+# Service-lər arasında əlaqə:
+# frontend → api-gateway → auth-service / transaction-service / notification-service
+# transaction-service → RabbitMQ → worker-service → RabbitMQ → notification-service
+# Bütün service-lər → PostgreSQL
+# api-gateway → Redis (rate limiting)
+
+services:
+  # ─── Infrastructure ────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: payops-postgres
+    environment:
+      POSTGRES_DB: payops
+      POSTGRES_USER: payops
+      POSTGRES_PASSWORD: payops123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U payops"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: payops-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: payops-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: payops
+      RABBITMQ_DEFAULT_PASS: payops123
+    ports:
+      - "5672:5672"    # AMQP
+      - "15672:15672"  # Management UI (http://localhost:15672)
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Application Services ──────────────────────────────
+
+  auth-service:
+    build: ./services/auth-service
+    container_name: payops-auth
+    environment:
+      PORT: 8081
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: payops
+      DB_USER: payops
+      DB_PASSWORD: payops123
+      JWT_SECRET: dev-secret-change-in-prod
+      JWT_EXPIRY: 1h
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8081/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  transaction-service:
+    build: ./services/transaction-service
+    container_name: payops-transaction
+    environment:
+      PORT: 8082
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: payops
+      DB_USER: payops
+      DB_PASSWORD: payops123
+      JWT_SECRET: dev-secret-change-in-prod
+      RABBITMQ_URL: amqp://payops:payops123@rabbitmq:5672
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8082/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  worker-service:
+    build: ./services/worker-service
+    container_name: payops-worker
+    environment:
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: payops
+      DB_USER: payops
+      DB_PASSWORD: payops123
+      RABBITMQ_URL: amqp://payops:payops123@rabbitmq:5672
+      HEALTH_PORT: 8084
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8084/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  notification-service:
+    build: ./services/notification-service
+    container_name: payops-notification
+    environment:
+      PORT: 8083
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: payops
+      DB_USER: payops
+      DB_PASSWORD: payops123
+      JWT_SECRET: dev-secret-change-in-prod
+      RABBITMQ_URL: amqp://payops:payops123@rabbitmq:5672
+    ports:
+      - "8083:8083"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:8083/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  api-gateway:
+    build: ./services/api-gateway
+    container_name: payops-gateway
+    environment:
+      PORT: 8080
+      JWT_SECRET: dev-secret-change-in-prod
+      AUTH_SERVICE_URL: http://auth-service:8081
+      TRANSACTION_SERVICE_URL: http://transaction-service:8082
+      NOTIFICATION_SERVICE_URL: http://notification-service:8083
+    ports:
+      - "8080:8080"
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      transaction-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    container_name: payops-frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api-gateway
+
+volumes:
+  postgres_data:

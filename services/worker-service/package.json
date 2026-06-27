@@ -1,0 +1,19 @@
+{
+  "name": "worker-service",
+  "version": "1.0.0",
+  "description": "PayOps worker - processes transactions from queue",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "jest"
+  },
+  "dependencies": {
+    "pg": "^8.11.3",
+    "amqplib": "^0.10.3",
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "jest": "^29.7.0"
+  }
+}

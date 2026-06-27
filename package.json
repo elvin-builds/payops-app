@@ -1,0 +1,15 @@
+{
+  "name": "payops-app",
+  "version": "1.0.0",
+  "private": true,
+  "description": "PayOps Platform — Production-like DevOps Platform",
+  "scripts": {
+    "lint": "eslint 'services/*/src/**/*.js'",
+    "test": "jest --passWithNoTests",
+    "test:coverage": "jest --coverage --passWithNoTests"
+  },
+  "devDependencies": {
+    "eslint": "^8.56.0",
+    "jest": "^29.7.0"
+  }
+}
