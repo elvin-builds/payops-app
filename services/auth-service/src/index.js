@@ -11,6 +11,10 @@ const JWT_EXPIRY = process.env.JWT_EXPIRY || '1h';
 
 // ─── Structured Logger ───────────────────────────────────
 // Production-da log-lar JSON formatında olmalıdır ki, Loki/ELK parse edə bilsin
+const dbSsl = process.env.DB_SSL === 'true'
+  ? { rejectUnauthorized: false }
+  : false;
+
 const log = {
   info: (msg, meta = {}) => console.log(JSON.stringify({ level: 'info', service: 'auth-service', msg, ...meta, timestamp: new Date().toISOString() })),
   error: (msg, meta = {}) => console.error(JSON.stringify({ level: 'error', service: 'auth-service', msg, ...meta, timestamp: new Date().toISOString() })),
@@ -28,6 +32,7 @@ const pool = new Pool({
   max: 10,                    // max pool size
   idleTimeoutMillis: 30000,   // boş connection 30 saniyə sonra bağlanır
   connectionTimeoutMillis: 5000,
+  ssl: dbSsl,
 });
 
 pool.on('error', (err) => {

@@ -12,6 +12,10 @@ const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://payops:payops123@rabbit
 const QUEUE_COMPLETED = 'transaction.completed';
 
 // ─── Logger ───────────────────────────────────────────────
+const dbSsl = process.env.DB_SSL === 'true'
+  ? { rejectUnauthorized: false }
+  : false;
+
 const log = {
   info: (msg, meta = {}) => console.log(JSON.stringify({ level: 'info', service: 'notification-service', msg, ...meta, timestamp: new Date().toISOString() })),
   error: (msg, meta = {}) => console.error(JSON.stringify({ level: 'error', service: 'notification-service', msg, ...meta, timestamp: new Date().toISOString() })),
@@ -28,6 +32,7 @@ const pool = new Pool({
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
+  ssl: dbSsl,
 });
 
 // ─── Auth Middleware ──────────────────────────────────────

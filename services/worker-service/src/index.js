@@ -9,6 +9,10 @@ const QUEUE_COMPLETED = 'transaction.completed';
 const HEALTH_PORT = process.env.HEALTH_PORT || 8084;
 
 // ─── Logger ───────────────────────────────────────────────
+const dbSsl = process.env.DB_SSL === 'true'
+  ? { rejectUnauthorized: false }
+  : false;
+
 const log = {
   info: (msg, meta = {}) => console.log(JSON.stringify({ level: 'info', service: 'worker-service', msg, ...meta, timestamp: new Date().toISOString() })),
   error: (msg, meta = {}) => console.error(JSON.stringify({ level: 'error', service: 'worker-service', msg, ...meta, timestamp: new Date().toISOString() })),
@@ -25,6 +29,7 @@ const pool = new Pool({
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
+  ssl: dbSsl,
 });
 
 // ─── Health Check Server ──────────────────────────────────
