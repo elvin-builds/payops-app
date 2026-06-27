@@ -1,0 +1,74 @@
+{{- $root := . -}}
+{{- range $svc := list .Values.services.authService .Values.services.transactionService .Values.services.notificationService .Values.services.workerService .Values.services.apiGateway }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $root.Values.global.namespace }}
+spec:
+  replicas: {{ $svc.replicas }}
+  selector:
+    matchLabels:
+      app: {{ $svc.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ $svc.name }}
+    spec:
+      containers:
+        - name: {{ $svc.name }}
+          image: "{{ $root.Values.global.imageRegistry }}/{{ $svc.image }}:latest"
+          imagePullPolicy: {{ $root.Values.global.imagePullPolicy }}
+          ports:
+            - containerPort: {{ $svc.port }}
+          env:
+            {{- if eq $svc.name "worker-service" }}
+            - name: HEALTH_PORT
+              value: "{{ $svc.port }}"
+            {{- else }}
+            - name: PORT
+              value: "{{ $svc.port }}"
+            {{- end }}
+            {{- if ne $svc.name "api-gateway" }}
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Values.secrets.existingSecret }}
+                  key: DB_PASSWORD
+            {{- end }}
+            {{- if or (eq $svc.name "auth-service") (eq $svc.name "transaction-service") (eq $svc.name "notification-service") (eq $svc.name "api-gateway") }}
+            - name: JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $root.Values.secrets.existingSecret }}
+                  key: JWT_SECRET
+            {{- end }}
+          envFrom:
+            - configMapRef:
+                name: payops-config
+          readinessProbe:
+            httpGet:
+              path: {{ $svc.healthPath }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: {{ $svc.healthPath }}
+              port: {{ $svc.port }}
+            initialDelaySeconds: 60
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ $svc.name }}
+  namespace: {{ $root.Values.global.namespace }}
+spec:
+  selector:
+    app: {{ $svc.name }}
+  ports:
+    - port: {{ $svc.port }}
+      targetPort: {{ $svc.port }}
+---
+{{- end }}

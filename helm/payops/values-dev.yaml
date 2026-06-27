@@ -1,0 +1,19 @@
+global:
+  namespace: payops-dev
+  imageRegistry: payopsdevacr.azurecr.io
+  imagePullPolicy: Always
+  environment: dev
+
+config:
+  dbHost: payopsdevpg.postgres.database.azure.com
+  dbPort: "5432"
+  dbName: payops
+  dbUser: payopsadmin
+  dbSsl: "true"
+  jwtExpiry: "1h"
+  rabbitmqUrl: amqp://payops:payops123@rabbitmq:5672
+
+ingress:
+  enabled: true
+  className: nginx
+  host: ""
