@@ -87,9 +87,15 @@ See `.env.example` for all configuration options.
 
 ## Project Status
 
-- [x] Phase 1: Architecture Document
-- [x] Phase 2: Local Development Environment
-- [ ] Phase 3: Docker Production Readiness
-- [ ] Phase 4: CI Pipeline
-- [ ] Phase 5: Terraform Infrastructure
-- [ ] Phase 6-20: See architecture document
+- [x] Phase 1: Architecture Design
+- [x] Phase 2: Local Development (Docker Compose)
+- [x] Phase 3: Production Dockerfiles (multi-stage)
+- [x] Phase 4: CI Pipeline (GitHub Actions — lint, test, build, push to ACR)
+- [x] Phase 5: Azure Infrastructure (Terraform — AKS, ACR, PostgreSQL, KeyVault, VNet)
+- [x] Phase 6: Kubernetes Deployment (manual manifests)
+- [x] Phase 7: Helm Chart
+- [x] Phase 8: Ingress Controller (NGINX)
+- [ ] Phase 9: CD Pipeline (auto-deploy to AKS)
+- [ ] Phase 10: Monitoring (Prometheus/Grafana)
+- [ ] Phase 11: GitOps (Argo CD)
+- [ ] Phase 12: Secrets Management (Azure Key Vault CSI)
