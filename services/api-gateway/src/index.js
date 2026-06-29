@@ -54,6 +54,7 @@ const limiter = rateLimit({
   message: { error: 'Too many requests, try again later' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path === '/health',
 });
 app.use(limiter);
 
