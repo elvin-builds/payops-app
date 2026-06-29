@@ -1,9 +1,11 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
+const client = require('prom-client');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
+
 
 // ─── Config ───────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
@@ -25,6 +27,36 @@ const log = {
 const app = express();
 app.use(cors());
 
+// ─── Prometheus Metrics ───────────────────────────────────
+client.collectDefaultMetrics({
+  prefix: 'payops_api_gateway_',
+});
+
+const httpRequestsTotal = new client.Counter({
+  name: 'payops_api_gateway_http_requests_total',
+  help: 'Total number of HTTP requests handled by api-gateway',
+  labelNames: ['method', 'path', 'status_code'],
+});
+
+const httpRequestDurationSeconds = new client.Histogram({
+  name: 'payops_api_gateway_http_request_duration_seconds',
+  help: 'HTTP request duration in seconds for api-gateway',
+  labelNames: ['method', 'path', 'status_code'],
+  buckets: [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5],
+});
+
+function normalizePath(req) {
+  const path = req.originalUrl.split('?')[0];
+
+  if (path === '/health') return '/health';
+  if (path === '/metrics') return '/metrics';
+  if (path.startsWith('/api/auth')) return '/api/auth';
+  if (path.startsWith('/api/transactions')) return '/api/transactions';
+  if (path.startsWith('/api/notifications')) return '/api/notifications';
+
+  return path;
+}
+
 // ─── Request ID Middleware ────────────────────────────────
 // Hər request-ə unikal ID veririk — bütün service-lərdən keçəcək
 // Incident zamanı bir request-in bütün yolunu izləmək üçün
@@ -35,6 +67,18 @@ app.use((req, res, next) => {
 
   const start = Date.now();
   res.on('finish', () => {
+    const durationSeconds = (Date.now() - start) / 1000;
+    const labels = {
+      method: req.method,
+      path: normalizePath(req),
+      status_code: String(res.statusCode),
+    };
+
+    if (!['/health', '/metrics'].includes(req.path)) {
+      httpRequestsTotal.inc(labels);
+      httpRequestDurationSeconds.observe(labels, durationSeconds);
+    }
+
     log.info('request', {
       requestId: req.requestId,
       method: req.method,
@@ -43,6 +87,7 @@ app.use((req, res, next) => {
       duration: Date.now() - start,
     });
   });
+
   next();
 });
 
@@ -54,13 +99,19 @@ const limiter = rateLimit({
   message: { error: 'Too many requests, try again later' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => req.path === '/health',
+  skip: (req) => ['/health', '/metrics'].includes(req.path),
 });
 app.use(limiter);
 
 // ─── Health Check ─────────────────────────────────────────
 app.get('/health', (req, res) => {
   res.json({ status: 'healthy', service: 'api-gateway' });
+});
+
+// ─── Metrics Endpoint ─────────────────────────────────────
+app.get('/metrics', async (req, res) => {
+  res.set('Content-Type', client.register.contentType);
+  res.end(await client.register.metrics());
 });
 
 // ─── JWT Auth Middleware ──────────────────────────────────
