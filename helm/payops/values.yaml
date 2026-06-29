@@ -74,3 +74,7 @@ ingress:
   host: ""
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+
+monitoring:
+  serviceMonitor:
+    enabled: true

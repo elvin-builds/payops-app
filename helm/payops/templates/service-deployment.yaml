@@ -64,11 +64,14 @@ kind: Service
 metadata:
   name: {{ $svc.name }}
   namespace: {{ $root.Values.global.namespace }}
+  labels:
+    app: {{ $svc.name }}
 spec:
   selector:
     app: {{ $svc.name }}
   ports:
-    - port: {{ $svc.port }}
+    - name: http
+      port: {{ $svc.port }}
       targetPort: {{ $svc.port }}
 ---
 {{- end }}
