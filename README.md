@@ -1,21 +1,3 @@
-# PayOps App
-
-Production-like FinTech microservices platform built as a DevOps portfolio project.
-
-PayOps demonstrates a transaction-processing system with containerized services, PostgreSQL, Redis, RabbitMQ, API Gateway routing, JWT authentication, asynchronous worker processing, service healthchecks and CI-ready local deployment.
-
-## Architecture Overview
-
-- Frontend: React
-- API Gateway: Node.js service gateway
-- Auth Service: JWT-based authentication
-- Transaction Service: transaction creation and status tracking
-- Worker Service: asynchronous RabbitMQ consumer
-- Notification Service: transaction result notifications
-- PostgreSQL: persistent datastore
-- Redis: cache/session layer
-- RabbitMQ: async message broker
-
 # PayOps Platform
 
 Production-like FinTech transaction platform built to demonstrate end-to-end DevOps engineering practices.

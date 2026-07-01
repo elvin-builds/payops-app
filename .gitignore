@@ -4,7 +4,3 @@ dist/
 *.log
 .DS_Store
 k8s/secret.yaml
-.env.local
-**/node_modules/
-coverage/
-.cache/
