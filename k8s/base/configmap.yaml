@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: payops-config
+  namespace: payops
+data:
+  NODE_ENV: "production"
+  POSTGRES_DB: "payops"
+  POSTGRES_USER: "payops"
+  RABBITMQ_DEFAULT_USER: "payops"
