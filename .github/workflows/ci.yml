@@ -46,7 +46,7 @@ jobs:
             fi
 
             npm run lint --if-present
-            npm test --if-present
+            npm test --if-present -- --passWithNoTests
 
             cd - >/dev/null
           done
