@@ -1,21 +1,3 @@
-# PayOps App
-
-Production-like FinTech microservices platform built as a DevOps portfolio project.
-
-PayOps demonstrates a transaction-processing system with containerized services, PostgreSQL, Redis, RabbitMQ, API Gateway routing, JWT authentication, asynchronous worker processing, service healthchecks and CI-ready local deployment.
-
-## Architecture Overview
-
-- Frontend: React
-- API Gateway: Node.js service gateway
-- Auth Service: JWT-based authentication
-- Transaction Service: transaction creation and status tracking
-- Worker Service: asynchronous RabbitMQ consumer
-- Notification Service: transaction result notifications
-- PostgreSQL: persistent datastore
-- Redis: cache/session layer
-- RabbitMQ: async message broker
-
 # PayOps Platform
 
 Production-like FinTech transaction platform built to demonstrate end-to-end DevOps engineering practices.
@@ -117,3 +99,18 @@ See `.env.example` for all configuration options.
 - [ ] Phase 10: Monitoring (Prometheus/Grafana)
 - [ ] Phase 11: GitOps (Argo CD)
 - [ ] Phase 12: Secrets Management (Azure Key Vault CSI)
+
+## Container Images
+
+PayOps service images are published to GitHub Container Registry by the Docker Publish workflow.
+
+Image naming pattern:
+
+```text
+ghcr.io/elvin-builds/payops-api-gateway
+ghcr.io/elvin-builds/payops-auth-service
+ghcr.io/elvin-builds/payops-transaction-service
+ghcr.io/elvin-builds/payops-worker-service
+ghcr.io/elvin-builds/payops-notification-service
+ghcr.io/elvin-builds/payops-frontend
+The workflow builds and publishes images on pushes to the default branch, version tags and manual workflow runs.

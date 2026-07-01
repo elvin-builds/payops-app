@@ -5,7 +5,7 @@
   "description": "PayOps Platform — Production-like DevOps Platform",
   "scripts": {
     "lint": "eslint 'services/*/src/**/*.js'",
-    "test": "echo \"No root tests configured\"",
+    "test": "jest --passWithNoTests",
     "test:coverage": "jest --coverage --passWithNoTests"
   },
   "devDependencies": {
