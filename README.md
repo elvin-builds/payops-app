@@ -117,3 +117,18 @@ See `.env.example` for all configuration options.
 - [ ] Phase 10: Monitoring (Prometheus/Grafana)
 - [ ] Phase 11: GitOps (Argo CD)
 - [ ] Phase 12: Secrets Management (Azure Key Vault CSI)
+
+## Container Images
+
+PayOps service images are published to GitHub Container Registry by the Docker Publish workflow.
+
+Image naming pattern:
+
+```text
+ghcr.io/elvin-builds/payops-api-gateway
+ghcr.io/elvin-builds/payops-auth-service
+ghcr.io/elvin-builds/payops-transaction-service
+ghcr.io/elvin-builds/payops-worker-service
+ghcr.io/elvin-builds/payops-notification-service
+ghcr.io/elvin-builds/payops-frontend
+The workflow builds and publishes images on pushes to the default branch, version tags and manual workflow runs.
