@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+jobs:
+  validate-and-build:
+    name: Validate and Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install and test Node.js services
+        shell: bash
+        run: |
+          set -e
+
+          find services frontend -name package.json -not -path "*/node_modules/*" | while read package_file; do
+            dir=$(dirname "$package_file")
+            echo "Checking $dir"
+
+            cd "$dir"
+
+            if [ -f package-lock.json ]; then
+              npm ci
+            else
+              npm install
+            fi
+
+            npm run lint --if-present
+            npm test --if-present
+
+            cd - >/dev/null
+          done
+
+      - name: Validate Docker Compose
+        run: docker compose --env-file .env config
+
+      - name: Build containers
+        run: docker compose --env-file .env build
+
+      - name: Security scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          exit-code: 0
+          ignore-unfixed: true
