@@ -162,6 +162,8 @@ services:
       AUTH_SERVICE_URL: http://auth-service:8081
       TRANSACTION_SERVICE_URL: http://transaction-service:8082
       NOTIFICATION_SERVICE_URL: http://notification-service:8083
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      REDIS_URL: redis://redis:6379
     ports:
       - "8080:8080"
     depends_on:
@@ -170,6 +172,8 @@ services:
       transaction-service:
         condition: service_healthy
       notification-service:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
   frontend:

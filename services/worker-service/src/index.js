@@ -3,9 +3,13 @@ const amqp = require('amqplib');
 const express = require('express');
 
 // ─── Config ───────────────────────────────────────────────
-const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://payops:payops123@rabbitmq:5672';
+const RABBITMQ_URL = process.env.RABBITMQ_URL;
+if (!RABBITMQ_URL) { console.error('FATAL: RABBITMQ_URL not set'); process.exit(1); }
 const QUEUE_PROCESS = 'transaction.process';
 const QUEUE_COMPLETED = 'transaction.completed';
+const DLX_EXCHANGE = 'payops.dlx';
+const DLQ_PROCESS = 'transaction.process.dlq';
+const MAX_RETRIES = 3;
 const HEALTH_PORT = process.env.HEALTH_PORT || 8084;
 
 // ─── Logger ───────────────────────────────────────────────
@@ -25,7 +29,7 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'payops',
   user: process.env.DB_USER || 'payops',
-  password: process.env.DB_PASSWORD || 'payops123',
+  password: process.env.DB_PASSWORD,
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -55,6 +59,27 @@ async function processTransaction(data) {
   const client = await pool.connect();
 
   try {
+    // ─── Idempotency check ─────────────────────────────────
+    // If already completed, skip to prevent double-deduct
+    const existing = await client.query(
+      'SELECT status FROM transactions WHERE id = $1',
+      [transactionId]
+    );
+
+    if (existing.rows.length === 0) {
+      throw new Error('Transaction not found');
+    }
+
+    if (existing.rows[0].status === 'completed') {
+      log.warn('Transaction already processed, skipping', { transactionId });
+      return { success: true, idempotent: true };
+    }
+
+    if (existing.rows[0].status === 'processing') {
+      log.warn('Transaction already in progress, skipping', { transactionId });
+      return { success: false, reason: 'Already processing' };
+    }
+
     // Transaction-u "processing" statusuna keçir
     await client.query(
       "UPDATE transactions SET status = 'processing', updated_at = NOW() WHERE id = $1",
@@ -113,12 +138,19 @@ async function processTransaction(data) {
 
     return { success: true };
   } catch (err) {
-    await client.query('ROLLBACK');
-    // Transaction failed
-    await client.query(
+    await client.query('ROLLBACK').catch(() => {});
+    client.release();
+
+    // Use pool (not the rolled-back client) to record the failure
+    await pool.query(
       "UPDATE transactions SET status = 'failed', failure_reason = $2, updated_at = NOW() WHERE id = $1",
       [transactionId, err.message]
-    ).catch(() => {});
+    ).catch(rollbackErr => {
+      log.error('Failed to update transaction status after rollback', {
+        transactionId,
+        error: rollbackErr.message,
+      });
+    });
 
     log.error('Transaction processing failed', {
       transactionId,
@@ -138,7 +170,20 @@ async function startConsumer(retries = 15) {
       const connection = await amqp.connect(RABBITMQ_URL);
       const channel = await connection.createChannel();
 
-      await channel.assertQueue(QUEUE_PROCESS, { durable: true });
+      // Dead letter exchange — messages that fail too many times end up here
+      await channel.assertExchange(DLX_EXCHANGE, 'direct', { durable: true });
+      await channel.assertQueue(DLQ_PROCESS, { durable: true });
+      await channel.bindQueue(DLQ_PROCESS, DLX_EXCHANGE, QUEUE_PROCESS);
+
+      // Main queue with DLX config — failed messages route to DLQ after MAX_RETRIES
+      await channel.assertQueue(QUEUE_PROCESS, {
+        durable: true,
+        arguments: {
+          'x-dead-letter-exchange': DLX_EXCHANGE,
+          'x-dead-letter-routing-key': QUEUE_PROCESS,
+        },
+      });
+
       await channel.assertQueue(QUEUE_COMPLETED, { durable: true });
 
       // prefetch(1): bir dəfədə yalnız 1 mesaj al
@@ -151,9 +196,11 @@ async function startConsumer(retries = 15) {
       channel.consume(QUEUE_PROCESS, async (msg) => {
         if (!msg) return;
 
+        const retryCount = (msg.properties.headers || {})['x-retry-count'] || 0;
+
         try {
           const data = JSON.parse(msg.content.toString());
-          log.info('Received transaction', { transactionId: data.transactionId });
+          log.info('Received transaction', { transactionId: data.transactionId, attempt: retryCount + 1 });
 
           const result = await processTransaction(data);
 
@@ -173,13 +220,30 @@ async function startConsumer(retries = 15) {
           );
 
           // Manual ACK — yalnız uğurlu process-dən sonra
-          // Worker crash olsa, unacked mesaj yenidən queue-ya düşür
           channel.ack(msg);
         } catch (err) {
-          log.error('Message processing error', { error: err.message });
-          // nack with requeue: mesajı geri queue-ya qoy
-          // amma sonsuz loop olmaması üçün production-da dead letter queue istifadə olunur
-          channel.nack(msg, false, true);
+          log.error('Message processing error', {
+            error: err.message,
+            attempt: retryCount + 1,
+            maxRetries: MAX_RETRIES,
+          });
+
+          if (retryCount >= MAX_RETRIES) {
+            // Max retries exceeded — send to DLQ (don't requeue)
+            log.error('Max retries exceeded, sending to dead letter queue', {
+              retryCount,
+            });
+            channel.nack(msg, false, false);
+          } else {
+            // Requeue with incremented retry count
+            // Publish a new message with updated retry header, ack the original
+            const retryMsg = Buffer.from(msg.content.toString());
+            channel.sendToQueue(QUEUE_PROCESS, retryMsg, {
+              persistent: true,
+              headers: { 'x-retry-count': retryCount + 1 },
+            });
+            channel.ack(msg);
+          }
         }
       });
 

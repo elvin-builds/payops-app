@@ -6,7 +6,8 @@ const cors = require('cors');
 
 // ─── Config ───────────────────────────────────────────────
 const PORT = process.env.PORT || 8081;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) { console.error('FATAL: JWT_SECRET not set'); process.exit(1); }
 const JWT_EXPIRY = process.env.JWT_EXPIRY || '1h';
 
 // ─── Structured Logger ───────────────────────────────────
@@ -21,6 +22,9 @@ const log = {
   warn: (msg, meta = {}) => console.warn(JSON.stringify({ level: 'warn', service: 'auth-service', msg, ...meta, timestamp: new Date().toISOString() })),
 };
 
+// ─── Helpers ─────────────────────────────────────────────
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 // ─── Database ─────────────────────────────────────────────
 // Pool istifadə edirik, hər request üçün yeni connection açmırıq
 const pool = new Pool({
@@ -28,7 +32,7 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'payops',
   user: process.env.DB_USER || 'payops',
-  password: process.env.DB_PASSWORD || 'payops123',
+  password: process.env.DB_PASSWORD,
   max: 10,                    // max pool size
   idleTimeoutMillis: 30000,   // boş connection 30 saniyə sonra bağlanır
   connectionTimeoutMillis: 5000,
@@ -84,6 +88,10 @@ app.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Email and password required' });
     }
 
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
+    }
+
     if (password.length < 6) {
       return res.status(400).json({ error: 'Password must be at least 6 characters' });
     }
@@ -121,6 +129,10 @@ app.post('/login', async (req, res) => {
 
     if (!email || !password) {
       return res.status(400).json({ error: 'Email and password required' });
+    }
+
+    if (!EMAIL_RE.test(email)) {
+      return res.status(400).json({ error: 'Invalid email format' });
     }
 
     const result = await pool.query('SELECT * FROM users WHERE email = $1', [email]);

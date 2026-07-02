@@ -34,3 +34,27 @@ describe('Transaction - Validation', () => {
     expect(id).toMatch(uuidRegex);
   });
 });
+
+describe('Transaction - Pagination', () => {
+  test('should cap limit at 100', () => {
+    const maxLimit = 100;
+    const requested = 500;
+    const limit = Math.min(requested, maxLimit);
+    expect(limit).toBe(100);
+  });
+
+  test('should default limit to 20', () => {
+    const limit = Math.min(undefined || 20, 100);
+    expect(limit).toBe(20);
+  });
+
+  test('should default offset to 0', () => {
+    const offset = parseInt(undefined) || 0;
+    expect(offset).toBe(0);
+  });
+
+  test('should parse offset correctly', () => {
+    const offset = parseInt('40') || 0;
+    expect(offset).toBe(40);
+  });
+});

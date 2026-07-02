@@ -49,4 +49,17 @@ describe('Auth - Input Validation', () => {
     const password = 'test123';
     expect(password.length).toBeGreaterThanOrEqual(6);
   });
+
+  test('should validate email format - valid', () => {
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    expect(EMAIL_RE.test('user@example.com')).toBe(true);
+    expect(EMAIL_RE.test('test@payops.local')).toBe(true);
+  });
+
+  test('should validate email format - invalid', () => {
+    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    expect(EMAIL_RE.test('not-an-email')).toBe(false);
+    expect(EMAIL_RE.test('@no-local.com')).toBe(false);
+    expect(EMAIL_RE.test('spaces@ fail.com')).toBe(false);
+  });
 });

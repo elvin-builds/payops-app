@@ -1,6 +1,8 @@
 const express = require('express');
 const { createProxyMiddleware } = require('http-proxy-middleware');
 const rateLimit = require('express-rate-limit');
+const { RedisStore } = require('rate-limit-redis');
+const Redis = require('ioredis');
 const client = require('prom-client');
 const jwt = require('jsonwebtoken');
 const cors = require('cors');
@@ -9,7 +11,8 @@ const { v4: uuidv4 } = require('uuid');
 
 // ─── Config ───────────────────────────────────────────────
 const PORT = process.env.PORT || 8080;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) { console.error('FATAL: JWT_SECRET not set'); process.exit(1); }
 
 // Service URL-ləri — Docker Compose-da service adı ilə resolve olur
 const AUTH_SERVICE = process.env.AUTH_SERVICE_URL || 'http://auth-service:8081';
@@ -23,9 +26,20 @@ const log = {
   warn: (msg, meta = {}) => console.warn(JSON.stringify({ level: 'warn', service: 'api-gateway', msg, ...meta, timestamp: new Date().toISOString() })),
 };
 
+const ALLOWED_ORIGINS = (process.env.CORS_ORIGINS || 'http://localhost:3000').split(',').map(s => s.trim());
+
 // ─── Express App ──────────────────────────────────────────
 const app = express();
-app.use(cors());
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (curl, server-to-server)
+    if (!origin || ALLOWED_ORIGINS.includes(origin)) {
+      return callback(null, true);
+    }
+    callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+}));
 
 // ─── Prometheus Metrics ───────────────────────────────────
 client.collectDefaultMetrics({
@@ -91,16 +105,40 @@ app.use((req, res, next) => {
   next();
 });
 
+// ─── Redis Client ─────────────────────────────────────────
+const redis = new Redis(process.env.REDIS_URL || 'redis://redis:6379', {
+  maxRetriesPerRequest: 3,
+  enableReadyCheck: true,
+  lazyConnect: true,
+});
+
+redis.connect().catch(err => {
+  log.warn('Redis connection failed, using in-memory rate limiter', { error: err.message });
+});
+
+redis.on('error', (err) => {
+  log.warn('Redis error', { error: err.message });
+});
+
 // ─── Rate Limiting ────────────────────────────────────────
 // DDoS-dan qoruma: hər IP üçün 15 dəqiqədə max 100 request
-const limiter = rateLimit({
+const limiterConfig = {
   windowMs: 15 * 60 * 1000,
   max: 100,
   message: { error: 'Too many requests, try again later' },
   standardHeaders: true,
   legacyHeaders: false,
   skip: (req) => ['/health', '/metrics'].includes(req.path),
-});
+};
+
+// Use Redis store if connected, otherwise fall back to in-memory
+if (redis.status === 'ready' || redis.status === 'connecting') {
+  limiterConfig.store = new RedisStore({
+    sendCommand: (...args) => redis.call(...args),
+  });
+}
+
+const limiter = rateLimit(limiterConfig);
 app.use(limiter);
 
 // ─── Health Check ─────────────────────────────────────────

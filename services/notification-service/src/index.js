@@ -7,8 +7,10 @@ const cors = require('cors');
 
 // ─── Config ───────────────────────────────────────────────
 const PORT = process.env.PORT || 8083;
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret-change-in-prod';
-const RABBITMQ_URL = process.env.RABBITMQ_URL || 'amqp://payops:payops123@rabbitmq:5672';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) { console.error('FATAL: JWT_SECRET not set'); process.exit(1); }
+const RABBITMQ_URL = process.env.RABBITMQ_URL;
+if (!RABBITMQ_URL) { console.error('FATAL: RABBITMQ_URL not set'); process.exit(1); }
 const QUEUE_COMPLETED = 'transaction.completed';
 
 // ─── Logger ───────────────────────────────────────────────
@@ -28,7 +30,7 @@ const pool = new Pool({
   port: process.env.DB_PORT || 5432,
   database: process.env.DB_NAME || 'payops',
   user: process.env.DB_USER || 'payops',
-  password: process.env.DB_PASSWORD || 'payops123',
+  password: process.env.DB_PASSWORD,
   max: 5,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
@@ -78,11 +80,26 @@ app.get('/health', async (req, res) => {
 // ─── GET /notifications ──────────────────────────────────
 app.get('/notifications', authMiddleware, async (req, res) => {
   try {
-    const result = await pool.query(
-      'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT 50',
-      [req.user.userId]
-    );
-    res.json({ notifications: result.rows });
+    const limit = Math.min(parseInt(req.query.limit) || 20, 100);
+    const offset = parseInt(req.query.offset) || 0;
+
+    const [data, count] = await Promise.all([
+      pool.query(
+        'SELECT * FROM notifications WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2 OFFSET $3',
+        [req.user.userId, limit, offset]
+      ),
+      pool.query(
+        'SELECT COUNT(*) FROM notifications WHERE user_id = $1',
+        [req.user.userId]
+      ),
+    ]);
+
+    res.json({
+      notifications: data.rows,
+      total: parseInt(count.rows[0].count),
+      limit,
+      offset,
+    });
   } catch (err) {
     log.error('List notifications failed', { error: err.message });
     res.status(500).json({ error: 'Internal server error' });
